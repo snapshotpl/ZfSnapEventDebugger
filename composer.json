@@ -1,0 +1,28 @@
+{
+    "name": "snapshotpl/zf-snap-event-debugger",
+    "description": "Event Debugger for Zend Framework 2",
+    "type": "library",
+    "keywords": [
+        "zf2",
+        "events",
+        "debug"
+    ],
+    "homepage": "https://github.com/snapshotpl/ZfSnapEventDebugger",
+    "authors": [
+        {
+            "name": "Witold Wasiczko",
+            "email": "witold@wasiczko.pl",
+            "homepage": "http://www.psd2html.pl/"
+        }
+    ],
+    "require": {
+        "php": ">=5.3",
+        "zendframework/zend-developer-tools": "dev-master",
+        "zendframework/zend-eventmanager": "2.*"
+    },
+    "autoload": {
+        "psr-0": {
+            "ZfSnapEventDebugger": "src/"
+        }
+    }
+}
