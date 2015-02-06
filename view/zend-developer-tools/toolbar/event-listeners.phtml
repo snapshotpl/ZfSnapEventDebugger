@@ -13,15 +13,31 @@
                 <div class="zdt-detail-label"><?php echo $event; ?></div>
                 <?php foreach ($types as $type => $listeners): ?>
                     <div class="zdt-detail-context">
-                        <?php echo $type; ?><?php if (is_array($listeners)): ?> (<?php echo count($listeners) ?>)<?php endif; ?>
-                        <?php if(is_string($listeners)) : ?>
-                            <?php echo $listeners ?>
-                        <?php elseif (is_array($listeners) && count($listeners)): ?>
+                        <?php if ($type === 'caller'): ?>
+                            Triggered in
+                                <?php if (is_array($listeners)): ?>
+                                    <?php printf('%s:%s', $listeners['path'], $listeners['line']); ?>
+                                <?php else: ?>
+                                    unknown trigger
+                                <?php endif; ?>
+                        <?php elseif($type === 'event'): ?>
+                            EventManager listeners (<?php echo count($listeners); ?>)
+                            <?php if(count($listeners)): ?>
                             <ul>
                                 <?php foreach ($listeners as $listener): ?>
-                                    <li><?php echo $listener['priority'] ?>. <?php echo $listener['callback'] ?></li>
+                                    <li><?php printf('[%s] %s', $listener['priority'], $listener['callback']); ?></li>
                                 <?php endforeach; ?>
                             </ul>
+                            <?php endif; ?>
+                        <?php elseif($type === 'sharedEvent'): ?>
+                            SharedEventManager listeners (<?php echo count($listeners); ?>)
+                            <?php if(count($listeners)): ?>
+                            <ul>
+                                <?php foreach ($listeners as $listener): ?>
+                                    <li><?php printf('[%s] %s', $listener['priority'], $listener['callback']); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>

@@ -71,9 +71,9 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
         $eventKey = $this->getEventName($id, $eventName);
 
         $this->events[$eventKey] = array(
-            'Called in ' => $this->getCallerTrace(),
-            'EventManager' => $this->getEventManagerCallbacks($event),
-            'SharedEventManger' => $this->getSharedEventManagerCallbacks($event),
+            'caller' => $this->getCallerTrace(),
+            'event' => $this->getEventManagerCallbacks($event),
+            'sharedEvent' => $this->getSharedEventManagerCallbacks($event),
         );
     }
 
@@ -121,15 +121,15 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
      */
     protected function getCallerTrace()
     {
-        $calledTrace = 'Unknown';
         $debugBacktrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, self::NUMBER_STACK_FRAME);
-
         $index = self::NUMBER_STACK_FRAME - 1;
 
         if (isset($debugBacktrace[$index]) && $debugBacktrace[$index]['function'] === 'trigger') {
-            $calledTrace = $this->removeGetcwd($debugBacktrace[$index]['file']) .':'.$debugBacktrace[$index]['line'];
+            return array(
+                'path' => $this->removeGetcwd($debugBacktrace[$index]['file']),
+                'line' => $debugBacktrace[$index]['line']
+            );
         }
-        return $calledTrace;
     }
 
     /**
@@ -167,15 +167,14 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
         $callback = $listener->getCallback();
         $priority = (int) $listener->getMetadatum('priority');
 
-        if ($callback instanceof Closure) {
-            $ref = new ReflectionFunction($callback);
-            $callbackId = 'Closure: '. $this->removeGetcwd($ref->getFileName()) .':'. $ref->getStartLine() .'-'. $ref->getEndLine();
+        if ($callback instanceof \Closure) {
+            $callbackId = $this->getCallbackIdFromClosure($callback);
         } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
             $callbackId = $this->getMethodCall($callback[0], $callback[1]);
         } elseif (is_string($callback)) {
             $callbackId = $callback;
         } elseif (is_object($callback) && is_callable($callback)) {
-            $callbackId = $this->getMethodCall($callback, '__invoke()');
+            $callbackId = $this->getMethodCall($callback, '__invoke');
         } else {
             $callbackId = 'Unknown callback';
         }
@@ -186,13 +185,27 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
     }
 
     /**
+     * @param \Closure $function
+     * @return string
+     */
+    protected function getCallbackIdFromClosure(\Closure $function)
+    {
+        $ref = new \ReflectionFunction($function);
+        $path = $this->removeGetcwd($ref->getFileName());
+        $startLine = $ref->getStartLine();
+        $endLine = $ref->getEndLine();
+
+        return sprintf('Closure: %s:%d-%d', $path, $startLine, $endLine);
+    }
+
+    /**
      * @param object $object
      * @param string $method
      * @return string
      */
     protected function getMethodCall($object, $method)
     {
-        return sprintf('%s::%s', get_class($object), $method);
+        return sprintf('%s::%s()', get_class($object), $method);
     }
 
     /**

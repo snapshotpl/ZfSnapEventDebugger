@@ -2,16 +2,10 @@
 
 namespace ZfSnapEventDebugger;
 
-use Zend\EventManager\EventInterface;
-use Zend\EventManager\EventManager;
-use Zend\EventManager\EventsCapableInterface;
-use Zend\EventManager\SharedEventManagerInterface;
 use Zend\ModuleManager\Feature\AutoloaderProviderInterface;
 use Zend\ModuleManager\Feature\ConfigProviderInterface;
 use Zend\ModuleManager\Feature\InitProviderInterface;
 use Zend\ModuleManager\ModuleManagerInterface;
-use Zend\Stdlib\CallbackHandler;
-use Zend\Stdlib\PriorityQueue;
 
 /**
  * Module
