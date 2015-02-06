@@ -120,9 +120,11 @@ class Module implements InitProviderInterface, ConfigProviderInterface, Autoload
             $ref = new \ReflectionFunction($callback);
             $callbackId = 'Closure: '. $this->removeGetcwd($ref->getFileName()) .':'. $ref->getStartLine() .'-'. $ref->getEndLine();
         } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
-            $callbackId = get_class($callback[0]) . '::' . $callback[1];
+            $callbackId = $this->getMethodCall($callback[0], $callback[1]);
         } elseif (is_string($callback)) {
             $callbackId = $callback;
+        } elseif (is_object($callback) && is_callable($callback)) {
+            $callbackId = $this->getMethodCall($callback, '__invoke()');
         } else {
             $callbackId = 'Unknown callback';
         }
@@ -130,6 +132,11 @@ class Module implements InitProviderInterface, ConfigProviderInterface, Autoload
             'callback' => $callbackId,
             'priority' => $priority,
         );
+    }
+
+    protected function getMethodCall($object, $method)
+    {
+        return get_class($object) . '::' . $method;
     }
 
     /**
