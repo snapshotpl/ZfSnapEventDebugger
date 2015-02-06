@@ -12,16 +12,13 @@ use ZendDeveloperTools\Collector\AbstractCollector;
  */
 class Collector extends AbstractCollector
 {
-
     public function collect(MvcEvent $mvcEvent)
     {
-        $sm = $mvcEvent->getApplication()->getServiceManager();
-        /* @var $moduleManager \Zend\ModuleManager\ModuleManager */
-        $moduleManager = $sm->get('ModuleManager');
+        $param = EventDebuggerListener::SELF_PARAM_NAME;
+        /* @var $listener EventDebuggerListener */
+        $listener = $mvcEvent->getParam($param);
 
-        $modules = $moduleManager->getLoadedModules(false);
-        $module = $modules[__NAMESPACE__];
-        $this->data = $module->getEvents();
+        $this->data = $listener === null ? array() : $listener->getEvents();
     }
 
     public function getName()
