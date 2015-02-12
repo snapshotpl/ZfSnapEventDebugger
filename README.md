@@ -1,7 +1,7 @@
 ZfSnapEventDebugger
 ===================
 
-Event Debugger for Zend Framework 2
+Event Debugger for ZendDeveloperTools in Zend Framework 2
 
 Instalation
 -----------
