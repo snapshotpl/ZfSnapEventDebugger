@@ -18,4 +18,4 @@ Add dependencies to composer.json:
 
 And add module `ZfSnapEventDebugger` in `appilcation.config.php`
 
-![Screenshot](http://s3.amazonaws.com/awesome_screenshot/6613046?AWSAccessKeyId=0R7FMW7AXRVCYMAPTPR2&Expires=1417282541&Signature=gS8v7IteJElznhN0zwzJtlU4QbQ%3D)
+![Screenshot](http://www.psd2html.pl/img/eventmanager.png)
