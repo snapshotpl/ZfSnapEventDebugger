@@ -12,7 +12,6 @@ use ZendDeveloperTools\Collector\AbstractCollector;
  */
 class Collector extends AbstractCollector
 {
-
     public function collect(MvcEvent $mvcEvent)
     {
         $sm = $mvcEvent->getApplication()->getServiceManager();
