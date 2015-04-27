@@ -26,8 +26,7 @@ class Module implements InitProviderInterface, ConfigProviderInterface, Autoload
     {
         $sharedManager = $manager->getEventManager()->getSharedManager();
 
-        $listener = new EventDebuggerListener();
-        $sharedManager->attachAggregate($listener);
+        $this->listener = new TriggerEventListener($sharedManager);
     }
 
     /**
