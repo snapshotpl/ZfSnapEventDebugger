@@ -20,8 +20,10 @@ class Collector extends AbstractCollector
         $moduleManager = $sm->get('ModuleManager');
 
         $modules = $moduleManager->getLoadedModules(false);
-        $module = $modules[__NAMESPACE__];
-        $this->data = $module->getEvents();
+
+        if (isset($modules[__NAMESPACE__]) && $modules[__NAMESPACE__] instanceof Module) {
+            $this->data = $modules[__NAMESPACE__]->getListener()->getEvents();
+        }
     }
 
     public function getName()
