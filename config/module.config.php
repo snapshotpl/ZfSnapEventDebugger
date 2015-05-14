@@ -3,7 +3,7 @@
 return array(
     'service_manager' => array(
         'invokables' => array(
-            'eventListeners' => 'ZfSnapEventDebugger\Collector',
+            'ZfSnapEventDebugger\Collector' => 'ZfSnapEventDebugger\Collector',
         )
     ),
     'view_manager' => array(
@@ -14,13 +14,14 @@ return array(
     'zenddevelopertools' => array(
         'profiler' => array(
             'collectors' => array(
-                'eventListeners' => 'eventListeners',
+                'ZfSnapEventDebugger\Collector' => 'ZfSnapEventDebugger\Collector',
             )
         ),
         'toolbar' => array(
+            'enabled' => true,
             'entries' => array(
-                'eventListeners' => 'zend-developer-tools/toolbar/event-listeners',
-            )
-        )
-    )
+                'ZfSnapEventDebugger\Collector' => 'zend-developer-tools/toolbar/event-listeners',
+            ),
+        ),
+    ),
 );

@@ -12,18 +12,19 @@ use Zend\Stdlib\CallbackHandler;
 use Zend\Stdlib\PriorityQueue;
 
 /**
- * EventDebuggerListener
+ * TriggerEventListener
  *
  * @author Witold Wasiczko <witold@wasiczko.pl>
  */
-class EventDebuggerListener implements SharedListenerAggregateInterface
+class TriggerEventListener implements SharedListenerAggregateInterface
 {
-    const SELF_PARAM_NAME = 'EventDebuggerListener';
-    const HIGHEST_PRIORITY = 100000000;
+    const SELF_PARAM_NAME = __CLASS__;
     const NUMBER_STACK_FRAME = 5;
+    const WILDCARD = '*';
+    const HIGHEST_PRIORITY = 100000000;
 
     /**
-     * @var array
+     * @var Entity\Event[]
      */
     protected $events = array();
 
@@ -44,8 +45,8 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
     {
         $this->sharedManager = $events;
 
-        $events->attach('*', '*', array($this, 'onTriggerAnyEvent'), self::HIGHEST_PRIORITY);
-        $events->attach('Zend\Mvc\Application', MvcEvent::EVENT_BOOTSTRAP, array($this, 'injectListener'));
+        $events->attach(self::WILDCARD, self::WILDCARD, array($this, 'onTriggerAnyEvent'), self::HIGHEST_PRIORITY);
+        $events->attach('Zend\Mvc\Application', MvcEvent::EVENT_BOOTSTRAP, array($this, 'injectListenerToEvent'));
     }
 
     public function detachShared(SharedEventManagerInterface $events)
@@ -55,7 +56,7 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
     /**
      * @param MvcEvent $e
      */
-    public function injectListener(MvcEvent $e)
+    public function injectListenerToEvent(MvcEvent $e)
     {
         $e->setParam(self::SELF_PARAM_NAME, $this);
     }
@@ -68,20 +69,27 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
         $eventName = $event->getName();
         $target = $event->getTarget();
         $id = get_class($target);
-        $eventKey = $this->getEventName($id, $eventName);
+        $name = $this->getEventName($id, $eventName);
 
-        $this->events[$eventKey] = array(
-            'caller' => $this->getCallerTrace(),
-            'event' => $this->getEventManagerCallbacks($event),
-            'sharedEvent' => $this->getSharedEventManagerCallbacks($event),
-        );
+        $eventEntity = new Entity\Event();
+        $eventEntity->setName($eventName);
+        $eventEntity->setId($id);
+        $eventEntity->setListeners($this->getEventManagerListeners($event));
+        $eventEntity->setSharedListeners($this->getSharedEventManagerListeners($event));
+        $triggerSource = $this->getTriggerSource();
+
+        if ($triggerSource instanceof Entity\TriggerSource) {
+            $eventEntity->setTriggerSource($triggerSource);
+        }
+
+        $this->events[$name] = $eventEntity;
     }
 
     /**
      * @param EventInterface $event
-     * @return array
+     * @return Entity\Listener[]
      */
-    protected function getEventManagerCallbacks(EventInterface $event)
+    protected function getEventManagerListeners(EventInterface $event)
     {
         $target = $event->getTarget();
         $eventName = $event->getName();
@@ -100,9 +108,9 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
 
     /**
      * @param EventInterface $event
-     * @return array
+     * @return Entity\Listener[]
      */
-    protected function getSharedEventManagerCallbacks(EventInterface $event)
+    protected function getSharedEventManagerListeners(EventInterface $event)
     {
         $target = $event->getTarget();
         $id = get_class($target);
@@ -117,19 +125,64 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
     }
 
     /**
-     * @return string
+     * @return Entity\TriggerSource
      */
-    protected function getCallerTrace()
+    protected function getTriggerSource()
     {
         $debugBacktrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, self::NUMBER_STACK_FRAME);
         $index = self::NUMBER_STACK_FRAME - 1;
 
         if (isset($debugBacktrace[$index]) && $debugBacktrace[$index]['function'] === 'trigger') {
-            return array(
-                'path' => $this->removeGetcwd($debugBacktrace[$index]['file']),
-                'line' => $debugBacktrace[$index]['line']
-            );
+            $triggerSource = new Entity\TriggerSource();
+            $triggerSource->setFilename($this->removeGetcwd($debugBacktrace[$index]['file']));
+            $triggerSource->setLine($debugBacktrace[$index]['line']);
+
+            return $triggerSource;
         }
+    }
+
+    /**
+     * @param PriorityQueue $listeners
+     * @return Entity\Listener[]
+     */
+    protected function getCallbacks(PriorityQueue $listeners)
+    {
+        $callbacks = array();
+
+        foreach ($listeners as $listener) {
+            if ($listener instanceof CallbackHandler) {
+                $callbacks[] = $this->getListenerFromCallbackHandler($listener);
+            }
+        }
+        return $callbacks;
+    }
+
+    /**
+     * @param CallbackHandler $callbackHandler
+     * @return Entity\Listener
+     */
+    protected function getListenerFromCallbackHandler(CallbackHandler $callbackHandler)
+    {
+        $callback = $callbackHandler->getCallback();
+        $priority = (int) $callbackHandler->getMetadatum('priority');
+
+        if ($callback instanceof \Closure) {
+            $name = $this->getCallbackIdFromClosure($callback);
+        } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
+            $name = $this->getMethodCall($callback[0], $callback[1]);
+        } elseif (is_string($callback)) {
+            $name = $callback;
+        } elseif (is_object($callback) && is_callable($callback)) {
+            $name = $this->getMethodCall($callback, '__invoke');
+        } else {
+            $name = 'Unknown callback';
+        }
+
+        $listener = new Entity\Listener();
+        $listener->setName($name);
+        $listener->setPriority($priority);
+
+        return $listener;
     }
 
     /**
@@ -140,48 +193,6 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
     protected function getEventName($id, $name)
     {
         return sprintf('%s::%s',  $id, $name);
-    }
-
-    /**
-     * @param PriorityQueue $listeners
-     * @return array[]
-     */
-    protected function getCallbacks(PriorityQueue $listeners)
-    {
-        $callbacks = array();
-
-        foreach ($listeners as $listener) {
-            if ($listener instanceof CallbackHandler) {
-                $callbacks[] = $this->getCallbackFromListener($listener);
-            }
-        }
-        return $callbacks;
-    }
-
-    /**
-     * @param CallbackHandler $listener
-     * @return array
-     */
-    protected function getCallbackFromListener(CallbackHandler $listener)
-    {
-        $callback = $listener->getCallback();
-        $priority = (int) $listener->getMetadatum('priority');
-
-        if ($callback instanceof \Closure) {
-            $callbackId = $this->getCallbackIdFromClosure($callback);
-        } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
-            $callbackId = $this->getMethodCall($callback[0], $callback[1]);
-        } elseif (is_string($callback)) {
-            $callbackId = $callback;
-        } elseif (is_object($callback) && is_callable($callback)) {
-            $callbackId = $this->getMethodCall($callback, '__invoke');
-        } else {
-            $callbackId = 'Unknown callback';
-        }
-        return array(
-            'callback' => $callbackId,
-            'priority' => $priority,
-        );
     }
 
     /**
@@ -233,7 +244,7 @@ class EventDebuggerListener implements SharedListenerAggregateInterface
     }
 
     /**
-     * @return array
+     * @return Entity\Event[]
      */
     public function getEvents()
     {
