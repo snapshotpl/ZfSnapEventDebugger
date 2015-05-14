@@ -24,7 +24,7 @@ class TriggerEventListener implements SharedListenerAggregateInterface
     const HIGHEST_PRIORITY = 100000000;
 
     /**
-     * @var array
+     * @var Entity\Event[]
      */
     protected $events = array();
 
@@ -69,20 +69,27 @@ class TriggerEventListener implements SharedListenerAggregateInterface
         $eventName = $event->getName();
         $target = $event->getTarget();
         $id = get_class($target);
-        $eventKey = $this->getEventName($id, $eventName);
+        $name = $this->getEventName($id, $eventName);
 
-        $this->events[$eventKey] = array(
-            'caller' => $this->getCallerTrace(),
-            'event' => $this->getEventManagerCallbacks($event),
-            'sharedEvent' => $this->getSharedEventManagerCallbacks($event),
-        );
+        $eventEntity = new Entity\Event();
+        $eventEntity->setName($eventName);
+        $eventEntity->setId($id);
+        $eventEntity->setListeners($this->getEventManagerListeners($event));
+        $eventEntity->setSharedListeners($this->getSharedEventManagerListeners($event));
+        $triggerSource = $this->getTriggerSource();
+
+        if ($triggerSource instanceof Entity\TriggerSource) {
+            $eventEntity->setTriggerSource($triggerSource);
+        }
+
+        $this->events[$name] = $eventEntity;
     }
 
     /**
      * @param EventInterface $event
-     * @return array
+     * @return Entity\Listener[]
      */
-    protected function getEventManagerCallbacks(EventInterface $event)
+    protected function getEventManagerListeners(EventInterface $event)
     {
         $target = $event->getTarget();
         $eventName = $event->getName();
@@ -101,9 +108,9 @@ class TriggerEventListener implements SharedListenerAggregateInterface
 
     /**
      * @param EventInterface $event
-     * @return array
+     * @return Entity\Listener[]
      */
-    protected function getSharedEventManagerCallbacks(EventInterface $event)
+    protected function getSharedEventManagerListeners(EventInterface $event)
     {
         $target = $event->getTarget();
         $id = get_class($target);
@@ -118,34 +125,25 @@ class TriggerEventListener implements SharedListenerAggregateInterface
     }
 
     /**
-     * @return string
+     * @return Entity\TriggerSource
      */
-    protected function getCallerTrace()
+    protected function getTriggerSource()
     {
         $debugBacktrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, self::NUMBER_STACK_FRAME);
         $index = self::NUMBER_STACK_FRAME - 1;
 
         if (isset($debugBacktrace[$index]) && $debugBacktrace[$index]['function'] === 'trigger') {
-            return array(
-                'path' => $this->removeGetcwd($debugBacktrace[$index]['file']),
-                'line' => $debugBacktrace[$index]['line']
-            );
+            $triggerSource = new Entity\TriggerSource();
+            $triggerSource->setFilename($this->removeGetcwd($debugBacktrace[$index]['file']));
+            $triggerSource->setLine($debugBacktrace[$index]['line']);
+
+            return $triggerSource;
         }
     }
 
     /**
-     * @param string $id
-     * @param string $name
-     * @return string
-     */
-    protected function getEventName($id, $name)
-    {
-        return sprintf('%s::%s',  $id, $name);
-    }
-
-    /**
      * @param PriorityQueue $listeners
-     * @return array[]
+     * @return Entity\Listener[]
      */
     protected function getCallbacks(PriorityQueue $listeners)
     {
@@ -153,36 +151,43 @@ class TriggerEventListener implements SharedListenerAggregateInterface
 
         foreach ($listeners as $listener) {
             if ($listener instanceof CallbackHandler) {
-                $callbacks[] = $this->getCallbackFromListener($listener);
+                $callbacks[] = $this->getListenerFromCallbackHandler($listener);
             }
         }
         return $callbacks;
     }
 
     /**
-     * @param CallbackHandler $listener
-     * @return array
+     * @param CallbackHandler $callbackHandler
+     * @return Entity\Listener
      */
-    protected function getCallbackFromListener(CallbackHandler $listener)
+    protected function getListenerFromCallbackHandler(CallbackHandler $callbackHandler)
     {
-        $callback = $listener->getCallback();
-        $priority = (int) $listener->getMetadatum('priority');
+        $callback = $callbackHandler->getCallback();
+        $priority = (int) $callbackHandler->getMetadatum('priority');
 
         if ($callback instanceof \Closure) {
-            $callbackId = $this->getCallbackIdFromClosure($callback);
+            $name = $this->getCallbackIdFromClosure($callback);
         } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
-            $callbackId = $this->getMethodCall($callback[0], $callback[1]);
+            $name = $this->getMethodCall($callback[0], $callback[1]);
         } elseif (is_string($callback)) {
-            $callbackId = $callback;
+            $name = $callback;
         } elseif (is_object($callback) && is_callable($callback)) {
-            $callbackId = $this->getMethodCall($callback, '__invoke');
+            $name = $this->getMethodCall($callback, '__invoke');
         } else {
-            $callbackId = 'Unknown callback';
+            $name = 'Unknown callback';
         }
-        return array(
-            'callback' => $callbackId,
-            'priority' => $priority,
-        );
+
+        $listener = new Entity\Listener();
+        $listener->setName($name);
+        $listener->setPriority($priority);
+
+        return $listener;
+    }
+
+    protected function getEventName($id, $name)
+    {
+        return sprintf('%s::%s',  $id, $name);
     }
 
     /**
@@ -234,7 +239,7 @@ class TriggerEventListener implements SharedListenerAggregateInterface
     }
 
     /**
-     * @return array
+     * @return Entity\Event[]
      */
     public function getEvents()
     {
