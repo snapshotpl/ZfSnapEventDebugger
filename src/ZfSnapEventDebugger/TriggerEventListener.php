@@ -46,7 +46,7 @@ class TriggerEventListener implements SharedListenerAggregateInterface
         $this->sharedManager = $events;
 
         $events->attach(self::WILDCARD, self::WILDCARD, array($this, 'onTriggerAnyEvent'), self::HIGHEST_PRIORITY);
-        $events->attach('Zend\Mvc\Application', MvcEvent::EVENT_BOOTSTRAP, array($this, 'injectListener'));
+        $events->attach('Zend\Mvc\Application', MvcEvent::EVENT_BOOTSTRAP, array($this, 'injectListenerToEvent'));
     }
 
     public function detachShared(SharedEventManagerInterface $events)
@@ -56,7 +56,7 @@ class TriggerEventListener implements SharedListenerAggregateInterface
     /**
      * @param MvcEvent $e
      */
-    public function injectListener(MvcEvent $e)
+    public function injectListenerToEvent(MvcEvent $e)
     {
         $e->setParam(self::SELF_PARAM_NAME, $this);
     }
@@ -185,6 +185,11 @@ class TriggerEventListener implements SharedListenerAggregateInterface
         return $listener;
     }
 
+    /**
+     * @param string $id
+     * @param string $name
+     * @return string
+     */
     protected function getEventName($id, $name)
     {
         return sprintf('%s::%s',  $id, $name);

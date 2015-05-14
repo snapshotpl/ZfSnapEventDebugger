@@ -15,32 +15,16 @@ use Zend\ModuleManager\ModuleManagerInterface;
 class Module implements InitProviderInterface, ConfigProviderInterface, AutoloaderProviderInterface
 {
     /**
-     * @var TriggerEventListener
-     */
-    protected $listener;
-
-    /**
      * @param ModuleManagerInterface $manager
      */
     public function init(ModuleManagerInterface $manager)
     {
-        $manager->loadModule('ZendDeveloperTools');
+        $listener = new TriggerEventListener();
 
         $sharedManager = $manager->getEventManager()->getSharedManager();
-        $sharedManager->attachAggregate(new TriggerEventListener());
+        $sharedManager->attachAggregate($listener);
 
-//        $this->listener = new TriggerEventListener();
-    }
-
-    /**
-     * @return TriggerEventListener
-     */
-    public function getListener()
-    {
-        if (!$this->listener instanceof TriggerEventListener) {
-            throw new \BadMethodCallException('Method can not be called before init() method');
-        }
-        return $this->listener;
+        $manager->loadModule('ZendDeveloperTools');
     }
 
     /**

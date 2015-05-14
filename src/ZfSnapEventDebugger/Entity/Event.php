@@ -77,5 +77,4 @@ class Event
         $this->sharedListeners = $sharedListeners;
     }
 
-
 }

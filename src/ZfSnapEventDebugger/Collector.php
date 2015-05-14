@@ -12,6 +12,10 @@ use ZendDeveloperTools\Collector\AbstractCollector;
  */
 class Collector extends AbstractCollector
 {
+
+    /**
+     * @param MvcEvent $mvcEvent
+     */
     public function collect(MvcEvent $mvcEvent)
     {
         $listener = $mvcEvent->getParam(TriggerEventListener::SELF_PARAM_NAME);
@@ -19,16 +23,25 @@ class Collector extends AbstractCollector
         $this->data = $listener->getEvents();
     }
 
+    /**
+     * @return string
+     */
     public function getName()
     {
-        return 'eventListeners';
+        return __CLASS__;
     }
 
+    /**
+     * @return int
+     */
     public function getPriority()
     {
-        return 100;
+        return -1000;
     }
 
+    /**
+     * @return Entity\Event[]
+     */
     public function getResult()
     {
         return $this->data;
