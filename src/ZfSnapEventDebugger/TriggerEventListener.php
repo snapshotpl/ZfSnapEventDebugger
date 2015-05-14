@@ -6,6 +6,8 @@ use Zend\EventManager\EventInterface;
 use Zend\EventManager\EventManager;
 use Zend\EventManager\EventsCapableInterface;
 use Zend\EventManager\SharedEventManagerInterface;
+use Zend\EventManager\SharedListenerAggregateInterface;
+use Zend\Mvc\MvcEvent;
 use Zend\Stdlib\CallbackHandler;
 use Zend\Stdlib\PriorityQueue;
 
@@ -14,15 +16,12 @@ use Zend\Stdlib\PriorityQueue;
  *
  * @author Witold Wasiczko <witold@wasiczko.pl>
  */
-class TriggerEventListener
+class TriggerEventListener implements SharedListenerAggregateInterface
 {
+    const SELF_PARAM_NAME = __CLASS__;
+    const NUMBER_STACK_FRAME = 5;
     const WILDCARD = '*';
-    const MAX_PRIORITY = 100000000;
-
-    /**
-     * @var SharedEventManagerInterface
-     */
-    protected $sharedManager;
+    const HIGHEST_PRIORITY = 100000000;
 
     /**
      * @var array
@@ -34,78 +33,104 @@ class TriggerEventListener
      */
     protected $getcwd = null;
 
-    public function __construct(SharedEventManagerInterface $sharedManager)
-    {
-        $this->sharedManager = $sharedManager;
+    /**
+     * @var SharedEventManagerInterface
+     */
+    protected $sharedManager;
 
-        $sharedManager->attach(self::WILDCARD, self::WILDCARD, $this, self::MAX_PRIORITY);
+    /**
+     * @param SharedEventManagerInterface $events
+     */
+    public function attachShared(SharedEventManagerInterface $events)
+    {
+        $this->sharedManager = $events;
+
+        $events->attach(self::WILDCARD, self::WILDCARD, array($this, 'onTriggerAnyEvent'), self::HIGHEST_PRIORITY);
+        $events->attach('Zend\Mvc\Application', MvcEvent::EVENT_BOOTSTRAP, array($this, 'injectListener'));
+    }
+
+    public function detachShared(SharedEventManagerInterface $events)
+    {
     }
 
     /**
-     * @param EventInterface $e
+     * @param MvcEvent $e
      */
-    public function __invoke(EventInterface $e)
+    public function injectListener(MvcEvent $e)
     {
-        $target = $e->getTarget();
-        $id = get_class($target);
-        $eventName = $e->getName();
+        $e->setParam(self::SELF_PARAM_NAME, $this);
+    }
 
-        $this->events[$this->getEventName($id, $eventName)] = array(
-            'Called in ' => $this->getCalledTrace(),
-            'EventManager' => $this->getEventManagerCallbacks($target, $eventName),
-            'SharedEventManger' => $this->getSharedEventManagerCallbacks($id, $eventName),
+    /**
+     * @param EventInterface $event
+     */
+    public function onTriggerAnyEvent(EventInterface $event)
+    {
+        $eventName = $event->getName();
+        $target = $event->getTarget();
+        $id = get_class($target);
+        $eventKey = $this->getEventName($id, $eventName);
+
+        $this->events[$eventKey] = array(
+            'caller' => $this->getCallerTrace(),
+            'event' => $this->getEventManagerCallbacks($event),
+            'sharedEvent' => $this->getSharedEventManagerCallbacks($event),
         );
     }
 
     /**
-     * @param EventsCapableInterface $target
-     * @param string $eventName
+     * @param EventInterface $event
      * @return array
      */
-    protected function getEventManagerCallbacks($target, $eventName)
+    protected function getEventManagerCallbacks(EventInterface $event)
     {
-        $eventManagerCallbacks = array();
+        $target = $event->getTarget();
+        $eventName = $event->getName();
+        $callbacks = array();
 
         if (is_object($target) && $target instanceof EventsCapableInterface) {
             $em = $target->getEventManager();
 
             if ($em instanceof EventManager) {
                 $listeners = $em->getListeners($eventName);
-                $eventManagerCallbacks = $this->getCallbacks($listeners);
+                $callbacks = $this->getCallbacks($listeners);
             }
         }
-        return $eventManagerCallbacks;
+        return $callbacks;
     }
 
     /**
-     * @param string $id
-     * @param string $eventName
+     * @param EventInterface $event
      * @return array
      */
-    protected function getSharedEventManagerCallbacks($id, $eventName)
+    protected function getSharedEventManagerCallbacks(EventInterface $event)
     {
-        $sharedEventMangerCallbacks = array();
-
+        $target = $event->getTarget();
+        $id = get_class($target);
+        $eventName = $event->getName();
+        $callbacks = array();
         $sharedListeners = $this->sharedManager->getListeners($id, $eventName);
 
         if ($sharedListeners !== false) {
-            $sharedEventMangerCallbacks = $this->getCallbacks($sharedListeners);
+            $callbacks = $this->getCallbacks($sharedListeners);
         }
-        return $sharedEventMangerCallbacks;
+        return $callbacks;
     }
 
     /**
      * @return string
      */
-    protected function getCalledTrace()
+    protected function getCallerTrace()
     {
-        $calledTrace = 'Unknown';
-        $debugBacktrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        $debugBacktrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, self::NUMBER_STACK_FRAME);
+        $index = self::NUMBER_STACK_FRAME - 1;
 
-        if (isset($debugBacktrace[4]) && $debugBacktrace[4]['function'] === 'trigger') {
-            $calledTrace = $this->removeGetcwd($debugBacktrace[4]['file']) . ':' . $debugBacktrace[4]['line'];
+        if (isset($debugBacktrace[$index]) && $debugBacktrace[$index]['function'] === 'trigger') {
+            return array(
+                'path' => $this->removeGetcwd($debugBacktrace[$index]['file']),
+                'line' => $debugBacktrace[$index]['line']
+            );
         }
-        return $calledTrace;
     }
 
     /**
@@ -115,7 +140,7 @@ class TriggerEventListener
      */
     protected function getEventName($id, $name)
     {
-        return $id . '::' . $name;
+        return sprintf('%s::%s',  $id, $name);
     }
 
     /**
@@ -143,33 +168,35 @@ class TriggerEventListener
         $callback = $listener->getCallback();
         $priority = (int) $listener->getMetadatum('priority');
 
-        $callbackName = $this->callbackToString($callback);
-
+        if ($callback instanceof \Closure) {
+            $callbackId = $this->getCallbackIdFromClosure($callback);
+        } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
+            $callbackId = $this->getMethodCall($callback[0], $callback[1]);
+        } elseif (is_string($callback)) {
+            $callbackId = $callback;
+        } elseif (is_object($callback) && is_callable($callback)) {
+            $callbackId = $this->getMethodCall($callback, '__invoke');
+        } else {
+            $callbackId = 'Unknown callback';
+        }
         return array(
-            'callback' => $callbackName,
+            'callback' => $callbackId,
             'priority' => $priority,
         );
     }
 
     /**
-     * @param mixed $callback
+     * @param \Closure $function
      * @return string
      */
-    protected function callbackToString($callback)
+    protected function getCallbackIdFromClosure(\Closure $function)
     {
-        if ($callback instanceof \Closure) {
-            $ref = new \ReflectionFunction($callback);
-            $callbackName = 'Closure: ' . $this->removeGetcwd($ref->getFileName()) . ':' . $ref->getStartLine() . '-' . $ref->getEndLine();
-        } elseif (is_array($callback) && count($callback) === 2 && is_object($callback[0])) {
-            $callbackName = $this->getMethodCall($callback[0], $callback[1]);
-        } elseif (is_string($callback)) {
-            $callbackName = $callback;
-        } elseif (is_object($callback) && is_callable($callback)) {
-            $callbackName = $this->getMethodCall($callback, '__invoke()');
-        } else {
-            $callbackName = 'Unknown callback';
-        }
-        return $callbackName;
+        $ref = new \ReflectionFunction($function);
+        $path = $this->removeGetcwd($ref->getFileName());
+        $startLine = $ref->getStartLine();
+        $endLine = $ref->getEndLine();
+
+        return sprintf('Closure: %s:%d-%d', $path, $startLine, $endLine);
     }
 
     /**
@@ -179,7 +206,7 @@ class TriggerEventListener
      */
     protected function getMethodCall($object, $method)
     {
-        return get_class($object) . '::' . $method;
+        return sprintf('%s::%s()', get_class($object), $method);
     }
 
     /**
@@ -201,7 +228,7 @@ class TriggerEventListener
     protected function getGetcwd()
     {
         if ($this->getcwd === null) {
-            $this->getcwd = getcwd() . '/';
+            $this->getcwd = getcwd() .'/';
         }
         return $this->getcwd;
     }

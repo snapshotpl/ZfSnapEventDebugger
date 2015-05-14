@@ -24,9 +24,12 @@ class Module implements InitProviderInterface, ConfigProviderInterface, Autoload
      */
     public function init(ModuleManagerInterface $manager)
     {
-        $sharedManager = $manager->getEventManager()->getSharedManager();
+        $manager->loadModule('ZendDeveloperTools');
 
-        $this->listener = new TriggerEventListener($sharedManager);
+        $sharedManager = $manager->getEventManager()->getSharedManager();
+        $sharedManager->attachAggregate(new TriggerEventListener());
+
+//        $this->listener = new TriggerEventListener();
     }
 
     /**

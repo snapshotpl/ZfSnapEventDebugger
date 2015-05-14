@@ -18,9 +18,10 @@ return array(
             )
         ),
         'toolbar' => array(
+            'enabled' => 'true',
             'entries' => array(
                 'eventListeners' => 'zend-developer-tools/toolbar/event-listeners',
-            )
-        )
-    )
+            ),
+        ),
+    ),
 );
