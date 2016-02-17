@@ -132,7 +132,7 @@ class TriggerEventListener implements SharedListenerAggregateInterface
         $debugBacktrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
         $index = self::NUMBER_STACK_FRAME - 1;
 
-        if (isset($debugBacktrace[$index]) && in_array($debugBacktrace[$index]['function'], array('trigger', 'triggerUntil'))) {
+        if (isset($debugBacktrace[$index]) && in_array($debugBacktrace[$index]['function'], array('trigger', 'triggerUntil', 'triggerEvent', 'triggerEventUntil'))) {
             $triggerSource = new Entity\TriggerSource();
             $triggerSource->setFilename($this->removeGetcwd($debugBacktrace[$index]['file']));
             $triggerSource->setLine($debugBacktrace[$index]['line']);
