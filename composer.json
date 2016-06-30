@@ -17,8 +17,8 @@
     ],
     "require": {
         "php": ">=5.3",
-        "zendframework/zend-developer-tools": "dev-master",
-        "zendframework/zend-eventmanager": "2.*"
+        "zendframework/zend-developer-tools": "^1.0",
+        "zendframework/zend-eventmanager": "^2.0"
     },
     "autoload": {
         "psr-0": {
