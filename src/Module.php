@@ -5,6 +5,7 @@ namespace ZfSnapEventDebugger;
 use Zend\ModuleManager\Feature\AutoloaderProviderInterface;
 use Zend\ModuleManager\Feature\ConfigProviderInterface;
 use Zend\ModuleManager\Feature\InitProviderInterface;
+use Zend\ModuleManager\ModuleManager;
 use Zend\ModuleManager\ModuleManagerInterface;
 
 /**
@@ -19,10 +20,16 @@ class Module implements InitProviderInterface, ConfigProviderInterface, Autoload
      */
     public function init(ModuleManagerInterface $manager)
     {
-        $listener = new TriggerEventListener();
+        $moduleManagerEventManager = $manager->getEventManager();
 
-        $sharedManager = $manager->getEventManager()->getSharedManager();
-        $sharedManager->attachAggregate($listener);
+        if (!$moduleManagerEventManager instanceof ModuleManager) {
+            return;
+        }
+
+        $sharedManager = $moduleManagerEventManager->getSharedManager();
+
+        $listener = new TriggerEventListener();
+        $listener->attachShared($sharedManager);
 
         $manager->loadModule('ZendDeveloperTools');
     }

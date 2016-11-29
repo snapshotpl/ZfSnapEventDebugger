@@ -6,7 +6,6 @@ use Zend\EventManager\EventInterface;
 use Zend\EventManager\EventManager;
 use Zend\EventManager\EventsCapableInterface;
 use Zend\EventManager\SharedEventManagerInterface;
-use Zend\EventManager\SharedListenerAggregateInterface;
 use Zend\Mvc\MvcEvent;
 use Zend\Stdlib\CallbackHandler;
 use Zend\Stdlib\PriorityQueue;
@@ -16,7 +15,7 @@ use Zend\Stdlib\PriorityQueue;
  *
  * @author Witold Wasiczko <witold@wasiczko.pl>
  */
-class TriggerEventListener implements SharedListenerAggregateInterface
+class TriggerEventListener
 {
     const SELF_PARAM_NAME = __CLASS__;
     const NUMBER_STACK_FRAME = 5;
