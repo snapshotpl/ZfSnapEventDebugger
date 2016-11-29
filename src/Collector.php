@@ -12,7 +12,6 @@ use ZendDeveloperTools\Collector\AbstractCollector;
  */
 class Collector extends AbstractCollector
 {
-
     /**
      * @param MvcEvent $mvcEvent
      */
